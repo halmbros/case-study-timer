@@ -70,21 +70,38 @@
   }
   .taskname .n{color:var(--amber);font-family:var(--mono);font-weight:700;margin-right:8px;}
 
+  .casedigits{
+    font-family:var(--mono);
+    font-size:clamp(64px,16vw,108px);
+    font-weight:700;
+    letter-spacing:0.02em;
+    text-align:center;
+    line-height:1;
+    margin:4px 0 2px;
+    color:var(--red);
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 0 24px rgba(255,77,79,0.35);
+  }
+  .casedigitssub{
+    text-align:center;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:0.08em;
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
   .digits{
     font-family:var(--mono);
-    font-size:clamp(52px,13vw,88px);
+    font-size:clamp(32px,8vw,52px);
     font-weight:600;
     letter-spacing:0.02em;
     text-align:center;
     line-height:1;
     margin:6px 0 4px;
-    color:var(--text);
+    color:var(--dim);
     font-variant-numeric:tabular-nums;
   }
   .digits.warn{color:var(--amber);}
   .digits.over{color:var(--red);}
   .digitssub{
-    text-align:center;font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:0.06em;
+    text-align:center;font-family:var(--mono);font-size:11px;color:var(--dimmer);letter-spacing:0.06em;
     margin-bottom:20px;
   }
 
@@ -196,6 +213,9 @@
   <div class="console" id="console">
     <div class="tasklabel" id="phaselabel">Not started</div>
     <div class="taskname" id="taskname"><span class="n">—</span>Press start to begin the protocol</div>
+
+    <div class="casedigits" id="casedigits">00:00</div>
+    <div class="casedigitssub">remaining on the case</div>
 
     <div class="digits" id="digits">00:00</div>
     <div class="digitssub" id="digitssub">remaining on this task</div>
@@ -313,6 +333,7 @@
     listbody: document.getElementById('listbody'),
     listhdr: document.getElementById('listhdr'),
     toast: document.getElementById('toast'),
+    casedigits: document.getElementById('casedigits'),
   };
 
   function fmtClock(totalMin){
@@ -397,6 +418,9 @@
   }
 
   function render(){
+    const totalRemaining = Math.max(0, totalSec - elapsedTotalSec);
+    el.casedigits.textContent = fmtElapsed(totalRemaining);
+
     if(idx >= tasks.length){
       el.phaselabel.textContent = "Complete";
       el.taskname.innerHTML = '<span class="n">✓</span>All tasks done — submit.';
