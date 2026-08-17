@@ -287,6 +287,8 @@
   let running = false;
   let lastTick = null;
   let warned60 = new Set();
+  let warnedHour = false;
+  let warned20 = false;
   let audioCtx = null;
   let rafId = null;
 
@@ -455,7 +457,9 @@
     osc.start(t0); osc.stop(t0+dur+0.02);
   }
   function alarmWarn(){ beep(880, 0.12, 0, 0.13); }
-  function alarmTransition(){ beep(700,0.11,0,0.16); beep(700,0.11,0.16,0.16); beep(880,0.16,0.33,0.18); }
+  function alarmTransition(){ beep(500,0.09,0,0.09); beep(650,0.09,0.11,0.09); }
+  function alarmHour(){ beep(760,0.14,0,0.20); beep(760,0.14,0.18,0.20); beep(950,0.20,0.38,0.22); }
+  function alarmTwentyMin(){ beep(600,0.16,0,0.26); beep(600,0.16,0.2,0.26); beep(600,0.16,0.4,0.26); beep(950,0.28,0.62,0.28); }
   function alarmSubmit(){ beep(660,0.18,0,0.2); beep(880,0.18,0.2,0.2); beep(1046,0.3,0.4,0.22); }
 
   function showToast(msg){
@@ -473,6 +477,17 @@
       remainSec -= dt;
       elapsedTotalSec += dt;
 
+      const remainingTotal = totalSec - elapsedTotalSec;
+      if(remainingTotal <= 3600 && remainingTotal > 0 && !warnedHour){
+        warnedHour = true;
+        alarmHour();
+        showToast("1 hour remaining");
+      }
+      if(remainingTotal <= 1200 && remainingTotal > 0 && !warned20){
+        warned20 = true;
+        alarmTwentyMin();
+        showToast("20 minutes remaining");
+      }
       if(remainSec <= 60 && remainSec > 0 && !warned60.has(idx)){
         warned60.add(idx);
         alarmWarn();
@@ -531,6 +546,8 @@
     remainSec = tasks[0].secs;
     elapsedTotalSec = 0;
     warned60 = new Set();
+    warnedHour = false;
+    warned20 = false;
     setButtons();
     render();
     refreshRailAndList();
