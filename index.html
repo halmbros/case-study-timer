@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order of Battle — Case Timer</title>
+<style>
+  :root{
+    --bg:#0B0E11;
+    --panel:#12181F;
+    --panel-2:#161D26;
+    --line:#232C36;
+    --text:#E8E6E1;
+    --dim:#7C8894;
+    --dimmer:#4B5560;
+    --amber:#FFB020;
+    --cyan:#3DDC97;
+    --red:#FF4D4F;
+    --mono: ui-monospace, "SF Mono", "IBM Plex Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{
+    min-height:100vh;
+    padding:28px 18px 40px;
+    background-image:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(255,176,32,0.05), transparent),
+      repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+
+  /* header */
+  .hdr{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .hdr h1{
+    font-family:var(--mono);font-size:13px;letter-spacing:0.18em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;margin:0;
+  }
+  .hdr h1 b{color:var(--amber);font-weight:700;}
+  .modewrap{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px;}
+  .modebtn{
+    font-family:var(--mono);font-size:12px;letter-spacing:0.05em;padding:6px 12px;border-radius:6px;
+    border:none;background:transparent;color:var(--dim);cursor:pointer;transition:all .15s ease;
+  }
+  .modebtn.active{background:var(--panel-2);color:var(--amber);box-shadow:0 0 0 1px var(--line) inset;}
+  .modebtn:disabled{opacity:0.35;cursor:not-allowed;}
+
+  /* main console */
+  .console{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:26px 24px 20px;
+    position:relative;
+    overflow:hidden;
+    transition:box-shadow .3s ease;
+  }
+  .console.warn{box-shadow:0 0 0 1px rgba(255,176,32,0.5) inset, 0 0 32px rgba(255,176,32,0.08);}
+  .console.over{box-shadow:0 0 0 1px rgba(255,77,79,0.5) inset, 0 0 32px rgba(255,77,79,0.10);}
+
+  .tasklabel{
+    font-family:var(--mono);font-size:11px;letter-spacing:0.08em;color:var(--dimmer);text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .taskname{
+    font-size:19px;font-weight:600;line-height:1.35;color:var(--text);
+    margin-bottom:18px;min-height:52px;
+  }
+  .taskname .n{color:var(--amber);font-family:var(--mono);font-weight:700;margin-right:8px;}
+
+  .digits{
+    font-family:var(--mono);
+    font-size:clamp(52px,13vw,88px);
+    font-weight:600;
+    letter-spacing:0.02em;
+    text-align:center;
+    line-height:1;
+    margin:6px 0 4px;
+    color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
+  .digits.warn{color:var(--amber);}
+  .digits.over{color:var(--red);}
+  .digitssub{
+    text-align:center;font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:0.06em;
+    margin-bottom:20px;
+  }
+
+  .statusrow{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+  .pill{
+    font-family:var(--mono);font-size:11px;letter-spacing:0.05em;padding:5px 11px;border-radius:20px;
+    background:var(--bg);border:1px solid var(--line);color:var(--dim);
+  }
+  .pill.ontrack{color:var(--cyan);border-color:rgba(61,220,151,0.3);}
+  .pill.behind{color:var(--amber);border-color:rgba(255,176,32,0.35);}
+  .pill.wayoff{color:var(--red);border-color:rgba(255,77,79,0.35);}
+
+  .transport{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .btn{
+    font-family:var(--mono);font-size:12px;letter-spacing:0.04em;padding:10px 16px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;transition:all .12s ease;
+  }
+  .btn:hover{border-color:var(--dim);background:var(--panel-2);}
+  .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  .btn.primary{background:var(--amber);color:#1a1204;border-color:var(--amber);font-weight:700;}
+  .btn.primary:hover{background:#ffc04d;}
+  .btn.ghost{border-color:transparent;color:var(--dim);}
+  .btn.ghost:hover{color:var(--text);background:var(--panel-2);}
+  .btn.small{padding:7px 11px;font-size:11px;}
+
+  /* timeline rail — signature element */
+  .rail-wrap{margin-top:22px;}
+  .rail-label{
+    display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
+    color:var(--dimmer);letter-spacing:0.06em;margin-bottom:6px;
+  }
+  .rail{
+    display:flex;width:100%;height:22px;border-radius:5px;overflow:hidden;
+    border:1px solid var(--line);background:var(--bg);
+  }
+  .seg{
+    height:100%;position:relative;border-right:1px solid var(--bg);
+    background:var(--panel-2);transition:background .3s ease;
+  }
+  .seg:last-child{border-right:none;}
+  .seg.done{background:#26493A;}
+  .seg.current{background:var(--amber);}
+  .seg.current::after{
+    content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0 2px, transparent 2px 6px);
+  }
+  .fillcursor{
+    position:relative;height:3px;background:transparent;margin-top:2px;
+  }
+  .fillcursor .dot{
+    position:absolute;top:0;width:2px;height:9px;background:var(--text);transform:translateX(-1px);
+    transition:left .3s ease;
+  }
+
+  /* task list */
+  .listcard{
+    margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  }
+  .listhdr{
+    padding:10px 16px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--dimmer);
+    text-transform:uppercase;border-bottom:1px solid var(--line);
+  }
+  .listbody{max-height:340px;overflow-y:auto;}
+  .row{
+    display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;
+    padding:10px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s ease;
+  }
+  .row:last-child{border-bottom:none;}
+  .row:hover{background:var(--panel-2);}
+  .row.current{background:rgba(255,176,32,0.07);}
+  .row.done{opacity:0.42;}
+  .rn{font-family:var(--mono);font-size:11px;color:var(--dimmer);}
+  .row.current .rn{color:var(--amber);}
+  .rtitle{font-size:13px;line-height:1.4;color:var(--text);}
+  .row.done .rtitle{text-decoration:line-through;text-decoration-color:var(--dimmer);}
+  .rtime{font-family:var(--mono);font-size:11px;color:var(--dim);white-space:nowrap;}
+  .rdur{font-family:var(--mono);font-size:11px;color:var(--dimmer);white-space:nowrap;min-width:38px;text-align:right;}
+
+  .foot{
+    margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--dimmer);line-height:1.6;text-align:center;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .seg.current::after{display:none;}
+    *{transition:none !important;}
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);border:1px solid var(--amber);color:var(--text);
+    font-family:var(--mono);font-size:12px;letter-spacing:0.03em;padding:12px 20px;border-radius:10px;
+    opacity:0;pointer-events:none;transition:all .3s ease;box-shadow:0 8px 30px rgba(0,0,0,0.5);
+    max-width:90vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <h1>Order of <b>Battle</b> — Case Timer</h1>
+    <div class="modewrap">
+      <button class="modebtn active" data-mode="3h">3H</button>
+      <button class="modebtn" data-mode="5h">5H</button>
+    </div>
+  </div>
+
+  <div class="console" id="console">
+    <div class="tasklabel" id="phaselabel">Not started</div>
+    <div class="taskname" id="taskname"><span class="n">—</span>Press start to begin the protocol</div>
+
+    <div class="digits" id="digits">00:00</div>
+    <div class="digitssub" id="digitssub">remaining on this task</div>
+
+    <div class="statusrow">
+      <div class="pill" id="elapsedpill">ELAPSED 0:00</div>
+      <div class="pill" id="statuspill">READY</div>
+      <div class="pill" id="uppill">UP NEXT: —</div>
+    </div>
+
+    <div class="transport">
+      <button class="btn primary" id="startbtn">Start</button>
+      <button class="btn" id="pausebtn" disabled>Pause</button>
+      <button class="btn ghost" id="skipbtn" disabled>Skip →</button>
+      <button class="btn ghost small" id="minus1">−1m</button>
+      <button class="btn ghost small" id="plus1">+1m</button>
+      <button class="btn ghost" id="resetbtn">Reset</button>
+    </div>
+
+    <div class="rail-wrap">
+      <div class="rail-label"><span>0:00</span><span id="railtotal">3:00</span></div>
+      <div class="rail" id="rail"></div>
+      <div class="fillcursor" id="fillcursor"><div class="dot" id="cursordot"></div></div>
+    </div>
+  </div>
+
+  <div class="listcard">
+    <div class="listhdr" id="listhdr">Full sequence — 3H protocol</div>
+    <div class="listbody" id="listbody"></div>
+  </div>
+
+  <div class="foot">
+    Alarm sounds at 60s-to-go and at every task change · click any row to jump there · ±1m nudges the current task only
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const PROTOCOLS = {
+    "3h": [
+      ["CIM: forecast summary page", 6],
+      ["CIM: segment P&L + KPI page", 6],
+      ["CDD: exec summary + scope & limitations (three extractions only)", 12],
+      ["Gate — write the 3 questions the case turns on", 4],
+      ["Revenue/EBITDA drivers off CIM forecast", 25],
+      ["Debt schedule, sweep, circ switch", 22],
+      ["S&U, MIP, returns block", 18],
+      ["Integrity checks (S=U, MOIC/IRR, bridge = 0)", 10],
+      ["Debug cap — note honestly and move", 15],
+      ["Entry/exit grid + ONE operating grid (the variable this business turns on)", 15],
+      ["Diagnostics: drop-through, margin decomposition from entry year, bridge legs %, break-even multiple, CDD triangulation", 14],
+      ["Memo — 9 bullets, 180-word architecture", 20],
+      ["Reconciliation: every figure to a cell/page, units, one EBITDA basis, re-paste grid", 9],
+      ["Triangulation check + submit", 4]
+    ],
+    "5h": [
+      ["CIM: forecast summary page", 8],
+      ["CIM: segment P&L + KPI/unit-economics page", 8],
+      ["CIM: market page", 4],
+      ["CDD: executive summary", 6],
+      ["CDD: scope & limitations section", 8],
+      ["Gate — write down the 3–4 questions this case turns on", 6],
+      ["Build revenue/EBITDA drivers off CIM forecast", 35],
+      ["Build debt schedule, sweep, circularity switch", 30],
+      ["Build S&U, MIP/dilution, returns block", 25],
+      ["Bridge check + integrity checks (S=U, MOIC/IRR reconcile)", 15],
+      ["Debug if bridge doesn't tie — hard cap", 20],
+      ["Build entry/exit sensitivity grid", 10],
+      ["Build 1–2 operating-variable grids (NWC, margin, vs growth)", 20],
+      ["Diagnostics: drop-through, margin decomposition (from entry year), bridge legs %, terminal-year check, ΔNWC÷Δrev, break-even exit multiple", 20],
+      ["CDD triangulation check (market CAGR vs plan CAGR → implied share gain)", 10],
+      ["Draft 180-word memo, all 9 bullets", 50],
+      ["Reconciliation pass: every figure to a cell/page ref, units, one EBITDA basis", 13],
+      ["Re-paste sensitivity table (kill the stale-grid error)", 4],
+      ["Triangulation check (entry in range; Price ceiling = Rec ceiling; Price carries flex + cheque)", 5],
+      ["Final read-through, submit", 3]
+    ]
+  };
+
+  let mode = "3h";
+  let tasks = [];         // {title, mins, secs, startSec, endSec}
+  let totalSec = 0;
+  let idx = 0;             // current task index
+  let remainSec = 0;       // remaining seconds on current task
+  let elapsedTotalSec = 0; // wall clock elapsed since first start
+  let running = false;
+  let lastTick = null;
+  let warned60 = new Set();
+  let audioCtx = null;
+  let rafId = null;
+
+  const el = {
+    consoleEl: document.getElementById('console'),
+    phaselabel: document.getElementById('phaselabel'),
+    taskname: document.getElementById('taskname'),
+    digits: document.getElementById('digits'),
+    digitssub: document.getElementById('digitssub'),
+    elapsedpill: document.getElementById('elapsedpill'),
+    statuspill: document.getElementById('statuspill'),
+    uppill: document.getElementById('uppill'),
+    startbtn: document.getElementById('startbtn'),
+    pausebtn: document.getElementById('pausebtn'),
+    skipbtn: document.getElementById('skipbtn'),
+    resetbtn: document.getElementById('resetbtn'),
+    minus1: document.getElementById('minus1'),
+    plus1: document.getElementById('plus1'),
+    rail: document.getElementById('rail'),
+    railtotal: document.getElementById('railtotal'),
+    cursordot: document.getElementById('cursordot'),
+    listbody: document.getElementById('listbody'),
+    listhdr: document.getElementById('listhdr'),
+    toast: document.getElementById('toast'),
+  };
+
+  function fmtClock(totalMin){
+    const h = Math.floor(totalMin/60), m = Math.round(totalMin%60);
+    return h>0 ? (h+":"+String(m).padStart(2,'0')) : ("0:"+String(m).padStart(2,'0'));
+  }
+  function fmtMMSS(sec){
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return String(m).padStart(2,'0')+":"+String(s).padStart(2,'0');
+  }
+  function fmtElapsed(sec){
+    sec = Math.max(0, Math.round(sec));
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    if(h>0) return h+":"+String(m).padStart(2,'0')+":"+String(s).padStart(2,'0');
+    return m+":"+String(s).padStart(2,'0');
+  }
+
+  function buildTasks(){
+    const src = PROTOCOLS[mode];
+    let cum = 0;
+    tasks = src.map(([title,mins])=>{
+      const secs = mins*60;
+      const startSec = cum;
+      cum += secs;
+      return {title, mins, secs, startSec, endSec:cum};
+    });
+    totalSec = cum;
+    el.railtotal.textContent = fmtClock(totalSec/60);
+    el.listhdr.textContent = "Full sequence — " + mode.toUpperCase() + " protocol";
+  }
+
+  function buildRail(){
+    el.rail.innerHTML = "";
+    tasks.forEach((t,i)=>{
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      seg.style.width = (t.secs/totalSec*100)+"%";
+      seg.dataset.i = i;
+      el.rail.appendChild(seg);
+    });
+  }
+
+  function buildList(){
+    el.listbody.innerHTML = "";
+    tasks.forEach((t,i)=>{
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.i = i;
+      row.innerHTML =
+        '<div class="rn">'+(i+1)+'</div>'+
+        '<div class="rtitle">'+t.title+'</div>'+
+        '<div class="rtime">'+fmtClock(t.startSec/60)+'–'+fmtClock(t.endSec/60)+'</div>'+
+        '<div class="rdur">'+t.mins+'m</div>';
+      row.addEventListener('click', ()=>jumpTo(i));
+      el.listbody.appendChild(row);
+    });
+  }
+
+  function refreshRailAndList(){
+    document.querySelectorAll('.seg').forEach((seg,i)=>{
+      seg.classList.toggle('done', i<idx);
+      seg.classList.toggle('current', i===idx);
+    });
+    document.querySelectorAll('.row').forEach((row,i)=>{
+      row.classList.toggle('done', i<idx);
+      row.classList.toggle('current', i===idx);
+    });
+    const cursorPct = totalSec>0 ? (elapsedTotalSec/totalSec*100) : 0;
+    el.cursordot.style.left = Math.min(100,Math.max(0,cursorPct))+"%";
+  }
+
+  function jumpTo(i, opts){
+    opts = opts || {};
+    idx = i;
+    remainSec = tasks[i].secs;
+    elapsedTotalSec = opts.preserveElapsed ? elapsedTotalSec : tasks[i].startSec;
+    warned60 = new Set();
+    render();
+    refreshRailAndList();
+    el.consoleEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function render(){
+    if(idx >= tasks.length){
+      el.phaselabel.textContent = "Complete";
+      el.taskname.innerHTML = '<span class="n">✓</span>All tasks done — submit.';
+      el.digits.textContent = "00:00";
+      el.digits.className = 'digits';
+      el.digitssub.textContent = "case complete";
+      el.uppill.textContent = "UP NEXT: —";
+      el.consoleEl.className = 'console';
+      el.skipbtn.disabled = true;
+      return;
+    }
+    const t = tasks[idx];
+    el.phaselabel.textContent = "Task "+(idx+1)+" of "+tasks.length;
+    el.taskname.innerHTML = '<span class="n">'+(idx+1)+'</span>'+t.title;
+    el.digits.textContent = fmtMMSS(remainSec);
+    el.digitssub.textContent = "remaining on this task";
+    const next = tasks[idx+1];
+    el.uppill.textContent = "UP NEXT: " + (next ? next.title.slice(0,40)+(next.title.length>40?'…':'') : "SUBMIT");
+    el.elapsedpill.textContent = "ELAPSED " + fmtElapsed(elapsedTotalSec) + " / " + fmtClock(totalSec/60);
+
+    // schedule status: compare wall-clock elapsed to this task's scheduled start
+    const drift = elapsedTotalSec - t.startSec; // + = behind, - = ahead
+    let statusClass = 'ontrack', statusText = 'ON SCHEDULE';
+    if(drift > 240){ statusClass='wayoff'; statusText = (Math.round(drift/60))+'m BEHIND'; }
+    else if(drift > 30){ statusClass='behind'; statusText = (Math.round(drift/60))+'m behind'; }
+    else if(drift < -30){ statusClass='ontrack'; statusText = Math.abs(Math.round(drift/60))+'m ahead'; }
+    el.statuspill.className = 'pill '+statusClass;
+    el.statuspill.textContent = statusText;
+
+    // warn/over states on digits + console glow
+    el.digits.className = 'digits';
+    el.consoleEl.className = 'console';
+    if(remainSec <= 60 && remainSec > 0){
+      el.digits.classList.add('warn');
+      el.consoleEl.classList.add('warn');
+    } else if(remainSec <= 0){
+      el.digits.classList.add('over');
+      el.consoleEl.classList.add('over');
+    }
+  }
+
+  // ---- audio ----
+  function ctx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function beep(freq, dur, delay, gain){
+    const c = ctx();
+    const t0 = c.currentTime + (delay||0);
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain||0.18, t0+0.01);
+    g.gain.linearRampToValueAtTime(0, t0+dur);
+    osc.connect(g); g.connect(c.destination);
+    osc.start(t0); osc.stop(t0+dur+0.02);
+  }
+  function alarmWarn(){ beep(880, 0.12, 0, 0.13); }
+  function alarmTransition(){ beep(700,0.11,0,0.16); beep(700,0.11,0.16,0.16); beep(880,0.16,0.33,0.18); }
+  function alarmSubmit(){ beep(660,0.18,0,0.2); beep(880,0.18,0.2,0.2); beep(1046,0.3,0.4,0.22); }
+
+  function showToast(msg){
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>el.toast.classList.remove('show'), 4200);
+  }
+
+  // ---- ticking ----
+  function tick(now){
+    if(running){
+      const dt = (now - lastTick)/1000;
+      lastTick = now;
+      remainSec -= dt;
+      elapsedTotalSec += dt;
+
+      if(remainSec <= 60 && remainSec > 0 && !warned60.has(idx)){
+        warned60.add(idx);
+        alarmWarn();
+        showToast("60s — up next: " + (tasks[idx+1] ? tasks[idx+1].title : "SUBMIT"));
+      }
+      if(remainSec <= 0){
+        advanceTask(true);
+      } else {
+        render();
+        refreshRailAndList();
+      }
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function advanceTask(auto){
+    idx += 1;
+    if(idx >= tasks.length){
+      running = false;
+      alarmSubmit();
+      showToast("Time — submit now.");
+      setButtons();
+      render();
+      refreshRailAndList();
+      return;
+    }
+    remainSec = tasks[idx].secs;
+    if(auto) alarmTransition();
+    showToast((auto?"Time. ":"") + "Now: " + tasks[idx].title);
+    render();
+    refreshRailAndList();
+  }
+
+  function setButtons(){
+    el.startbtn.disabled = running || idx>=tasks.length;
+    el.pausebtn.disabled = !running;
+    el.skipbtn.disabled = idx>=tasks.length;
+    el.startbtn.textContent = (idx===0 && elapsedTotalSec<1) ? "Start" : "Resume";
+  }
+
+  function start(){
+    ctx(); // unlock audio on user gesture
+    if(idx>=tasks.length) return;
+    running = true;
+    lastTick = performance.now();
+    setButtons();
+  }
+  function pause(){
+    running = false;
+    setButtons();
+  }
+  function reset(){
+    running = false;
+    buildTasks();
+    idx = 0;
+    remainSec = tasks[0].secs;
+    elapsedTotalSec = 0;
+    warned60 = new Set();
+    setButtons();
+    render();
+    refreshRailAndList();
+  }
+  function nudge(deltaMin){
+    remainSec = Math.max(0, remainSec + deltaMin*60);
+    render();
+  }
+
+  document.querySelectorAll('.modebtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(running) return;
+      mode = btn.dataset.mode;
+      document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('active', b===btn));
+      buildTasks();
+      buildRail();
+      buildList();
+      reset();
+    });
+  });
+
+  el.startbtn.addEventListener('click', start);
+  el.pausebtn.addEventListener('click', pause);
+  el.skipbtn.addEventListener('click', ()=>advanceTask(false));
+  el.resetbtn.addEventListener('click', reset);
+  el.minus1.addEventListener('click', ()=>nudge(-1));
+  el.plus1.addEventListener('click', ()=>nudge(1));
+
+  // init
+  buildTasks();
+  buildRail();
+  buildList();
+  reset();
+  rafId = requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
